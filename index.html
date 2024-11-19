@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nearby Places Tracker</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    /* General Styles */
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: 'Arial', sans-serif;
+      background-color: #f4f7fb;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header Section */
+    header {
+      background: linear-gradient(90deg, #4CAF50, #8BC34A);
+      color: white;
+      padding: 20px;
+      text-align: center;
+      font-size: 2em;
+      font-weight: bold;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Search Bar */
+    .search-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+      margin: 20px 0;
+    }
+
+    .search-container input {
+      width: 300px;
+      padding: 12px;
+      border: 2px solid #4CAF50;
+      border-radius: 30px;
+      outline: none;
+      font-size: 1em;
+      margin-bottom: 15px;
+      transition: box-shadow 0.3s ease;
+      background-color: #fff;
+    }
+
+    .search-container input:focus {
+      box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+    }
+
+    .search-container button {
+      padding: 12px 20px;
+      font-size: 1.1em;
+      font-weight: bold;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 30px;
+      cursor: pointer;
+      transition: background 0.3s ease, transform 0.3s ease;
+      width: 320px;
+    }
+
+    .search-container button:hover {
+      background: #388E3C;
+      transform: scale(1.05);
+    }
+
+    /* Category Buttons */
+    .category-buttons {
+      margin-top: 10px;
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 15px;
+      padding: 0 20px;
+    }
+
+    .category-buttons button {
+      padding: 12px 20px;
+      font-size: 1.1em;
+      background: #8BC34A;
+      color: white;
+      border: none;
+      border-radius: 30px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .category-buttons button:hover {
+      background: #66BB6A;
+    }
+
+    .category-buttons img {
+      margin-right: 8px;
+      width: 25px;
+      height: 25px;
+    }
+
+    /* Map Section */
+    #map {
+      height: 80vh;
+      margin-top: 20px;
+    }
+
+    /* Live Location Button */
+    .live-location-btn {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      padding: 12px 18px;
+      background: #ff5722;
+      color: white;
+      font-size: 1.1em;
+      border: none;
+      border-radius: 30px;
+      cursor: pointer;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+      z-index: 1000;
+      transition: background 0.3s ease, transform 0.3s ease;
+    }
+
+    .live-location-btn:hover {
+      background: #e64a19;
+      transform: scale(1.05);
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header>
+    Maharaj Places Tracker
+  </header>
+
+  <!-- Search Bar -->
+  <div class="search-container">
+    <input type="text" id="searchInput" placeholder="Enter location" />
+    <button id="searchButton">Search</button>
+  </div>
+
+  <!-- Category Buttons -->
+  <div class="category-buttons">
+    <button id="showHospitals">
+      <img src="https://img.icons8.com/ios-filled/50/000000/hospital-room.png" alt="Hospital" />
+      Hospitals
+    </button>
+    <button id="showTemples">
+      <img src="https://img.icons8.com/ios-filled/50/000000/temple.png" alt="Temple" />
+      Temples
+    </button>
+    <button id="showPetrolPumps">
+      <img src="https://img.icons8.com/ios-filled/50/000000/fuel-pump.png" alt="Petrol Pump" />
+      Petrol Pumps
+    </button>
+    <button id="showHotels">
+      <img src="https://img.icons8.com/ios-filled/50/000000/hotel.png" alt="Hotel" />
+      Hotels
+    </button>
+    <button id="showStations">
+      <img src="https://img.icons8.com/ios-filled/50/000000/railway-station.png" alt="Station" />
+      Stations
+    </button>
+    <button id="showBusStations">
+      <img src="https://img.icons8.com/ios-filled/50/000000/bus.png" alt="Bus Station" />
+      Bus Stations
+    </button>
+  </div>
+
+  <!-- Map Section -->
+  <div id="map"></div>
+  <button class="live-location-btn" id="liveLocationButton">Track Live Location</button>
+
+  <!-- Leaflet.js -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // Initialize the map
+    const map = L.map('map').setView([37.7749, -122.4194], 13);
+
+    // Add OpenStreetMap tiles
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Store markers in an array to remove them later
+    let markers = [];
+
+    // DOM Elements
+    const searchInput = document.getElementById('searchInput');
+    const searchButton = document.getElementById('searchButton');
+    const liveLocationButton = document.getElementById('liveLocationButton');
+
+    // Custom Icons for different categories
+    const icons = {
+      hospital: L.icon({
+        iconUrl: 'https://img.icons8.com/ios-filled/50/000000/hospital-room.png',
+        iconSize: [32, 32],
+        iconAnchor: [16, 32],
+        popupAnchor: [0, -32]
+      }),
+      temple: L.icon({
+        iconUrl: 'https://img.icons8.com/ios-filled/50/000000/temple.png',
+        iconSize: [32, 32],
+        iconAnchor: [16, 32],
+        popupAnchor: [0, -32]
+      }),
+      petrol: L.icon({
+        iconUrl: 'https://img.icons8.com/ios-filled/50/000000/fuel-pump.png',
+        iconSize: [32, 32],
+        iconAnchor: [16, 32],
+        popupAnchor: [0, -32]
+      }),
+      hotel: L.icon({
+        iconUrl: 'https://img.icons8.com/ios-filled/50/000000/hotel.png',
+        iconSize: [32, 32],
+        iconAnchor: [16, 32],
+        popupAnchor: [0, -32]
+      }),
+      station: L.icon({
+        iconUrl: 'https://img.icons8.com/ios-filled/50/000000/railway-station.png',
+        iconSize: [32, 32],
+        iconAnchor: [16, 32],
+        popupAnchor: [0, -32]
+      }),
+      bus_station: L.icon({
+        iconUrl: 'https://img.icons8.com/ios-filled/50/000000/bus.png',
+        iconSize: [32, 32],
+        iconAnchor: [16, 32],
+        popupAnchor: [0, -32]
+      })
+    };
+
+    // Event Listener for Search Button
+    searchButton.addEventListener('click', () => {
+      const query = searchInput.value.trim();
+      if (!query) return;
+
+      // Fetch suggestions from Nominatim API
+      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}`)
+        .then(response => response.json())
+        .then(data => {
+          if (data.length) {
+            const place = data[0]; // Use the first result
+            const { lat, lon } = place;
+            map.setView([lat, lon], 13);
+            L.marker([lat, lon]).addTo(map)
+              .bindPopup(`<b>${place.display_name}</b>`)
+              .openPopup();
+
+            window.currentLocation = { lat, lon }; // Save the location for nearby search
+          } else {
+            alert('Location not found!');
+          }
+        })
+        .catch(error => console.error('Error fetching location:', error));
+    });
+
+    // Function to search for nearby places
+    function searchNearbyPlaces(lat, lon, amenity) {
+      const url = `https://overpass-api.de/api/interpreter?data=[out:json];node(around:10000,${lat},${lon})[amenity=${amenity}];out;`; // 10 km radius
+
+      fetch(url)
+        .then(response => response.json())
+        .then(data => {
+          markers.forEach(marker => map.removeLayer(marker)); // Remove previous markers
+          markers = [];
+
+          if (data.elements.length) {
+            data.elements.forEach(element => {
+              const { lat, lon } = element;
+              const marker = L.marker([lat, lon], { icon: icons[amenity] })
+                .addTo(map)
+                .bindPopup(`<b>${element.tags.name || 'Unnamed'}</b>`);
+              markers.push(marker);
+            });
+          } else {
+            alert(`No ${amenity} found near your location.`);
+          }
+        })
+        .catch(error => console.error('Error fetching nearby places:', error));
+    }
+
+    // Event Listeners for Category Buttons
+    document.getElementById('showHospitals').addEventListener('click', () => {
+      if (window.currentLocation) {
+        searchNearbyPlaces(window.currentLocation.lat, window.currentLocation.lon, 'hospital');
+      } else {
+        alert('Please search for a location first.');
+      }
+    });
+
+    document.getElementById('showTemples').addEventListener('click', () => {
+      if (window.currentLocation) {
+        searchNearbyPlaces(window.currentLocation.lat, window.currentLocation.lon, 'temple');
+      } else {
+        alert('Please search for a location first.');
+      }
+    });
+
+    document.getElementById('showPetrolPumps').addEventListener('click', () => {
+      if (window.currentLocation) {
+        searchNearbyPlaces(window.currentLocation.lat, window.currentLocation.lon, 'petrol');
+      } else {
+        alert('Please search for a location first.');
+      }
+    });
+
+    document.getElementById('showHotels').addEventListener('click', () => {
+      if (window.currentLocation) {
+        searchNearbyPlaces(window.currentLocation.lat, window.currentLocation.lon, 'hotel');
+      } else {
+        alert('Please search for a location first.');
+      }
+    });
+
+    document.getElementById('showStations').addEventListener('click', () => {
+      if (window.currentLocation) {
+        searchNearbyPlaces(window.currentLocation.lat, window.currentLocation.lon, 'station');
+      } else {
+        alert('Please search for a location first.');
+      }
+    });
+
+    document.getElementById('showBusStations').addEventListener('click', () => {
+      if (window.currentLocation) {
+        searchNearbyPlaces(window.currentLocation.lat, window.currentLocation.lon, 'bus_station');
+      } else {
+        alert('Please search for a location first.');
+      }
+    });
+
+    // Track Live Location Button
+    liveLocationButton.addEventListener('click', () => {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(position => {
+          const { latitude, longitude } = position.coords;
+          map.setView([latitude, longitude], 13);
+          L.marker([latitude, longitude]).addTo(map)
+            .bindPopup('Your Current Location')
+            .openPopup();
+
+          // Save the current location
+          window.currentLocation = { lat: latitude, lon: longitude };
+        });
+      } else {
+        alert('Geolocation is not supported by this browser.');
+      }
+    });
+  </script>
+</body>
+</html>
